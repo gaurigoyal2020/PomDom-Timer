@@ -3,9 +3,11 @@
     "name": "PomDom",
     "version": "1.0.0",
     "author": "Gauri Goyal",
-    "permissions": ["storage", "activeTab"],
-    "action": 
-    {
+    "permissions": ["storage", "alarms", "activeTab", "notifications"],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "action": {
         "default_popup": "index.html",
         "default_icon": "logo.png"
     },

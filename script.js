@@ -6,96 +6,206 @@ let start = document.getElementById("start");
 let pause = document.getElementById("pause");
 let reset = document.getElementById("reset");
 let buttons = document.querySelector(".work_btns");
-let set; //holds interval ID for the secsdown
-let active = "focus"; //to know what category are we on (focus is deault)
-let secs=59;
-let mins=24;
-let paused=true;
 
-timer.textContent = `${mins+1}:00`; //adds initial text in span
+// Initialize timer on popup load
+document.addEventListener('DOMContentLoaded', initializeTimer);
 
-//making sure that timer always has 2 digits
-//If value is less than 10, we append 0 or we return og value
-const appendZero = (value) => {
-    value = value<10 ? `0${value}` : value;
-    return value;
+async function initializeTimer() {
+    try {
+        // Get current timer state from background script
+        chrome.runtime.sendMessage({ action: "getTime" }, (response) => {
+            if (response) {
+                updateUI(response);
+                // Start periodic updates to keep UI in sync
+                setInterval(updateTimerFromBackground, 1000);
+            }
+        });
+    } catch (error) {
+        console.error('Error initializing timer:', error);
+    }
 }
 
-start.addEventListener("click", ()=> {
+// Update UI based on timer data from background
+function updateUI(timerData) {
+    // Update timer display
+    timer.textContent = `${appendZero(timerData.mins)}:${appendZero(timerData.secs)}`;
+    
+    // Update active button styling
+    updateActiveButton(timerData.activeType);
+    
+    // Update button states
+    if (timerData.running) {
+        showRunningState();
+    } else {
+        showPausedState();
+    }
+}
+
+// Get latest timer state from background and update UI
+function updateTimerFromBackground() {
+    chrome.runtime.sendMessage({ action: "getTime" }, (response) => {
+        if (response) {
+            updateUI(response);
+        }
+    });
+}
+
+// Update active button styling
+function updateActiveButton(activeType) {
+    // Remove active class from all buttons
+    focus.classList.remove("btn-focus");
+    short_br.classList.remove("btn-focus");
+    long_br.classList.remove("btn-focus");
+    
+    // Add active class to current button
+    switch(activeType) {
+        case "short":
+            short_br.classList.add("btn-focus");
+            break;
+        case "long":
+            long_br.classList.add("btn-focus");
+            break;
+        default:
+            focus.classList.add("btn-focus");
+    }
+}
+
+// Show running state UI
+function showRunningState() {
     pause.classList.add("show");
     reset.classList.add("show");
     start.classList.add("hide");
     start.classList.remove("show");
+    pause.classList.remove("hide");
+    reset.classList.remove("hide");
+}
 
-    if (paused == true)
-        {
-            paused = false;
-            timer.textContent = `${appendZero(mins)}:${appendZero(secs)}`;
-            
-            set = setInterval(() => {
-            secs--;
-            timer.textContent = `${appendZero(mins)}:${appendZero(secs)}`;
-            if(secs==0)
-            {
-                if(mins != 0) {
-                    mins--;
-                    secs = 60;
-                }
-                else{
-                    clearInterval(set);
-                }
+// Show paused state UI
+function showPausedState() {
+    start.classList.remove("hide");
+    start.classList.add("show");
+    pause.classList.remove("show");
+    pause.classList.add("hide");
+    reset.classList.remove("show");
+    reset.classList.add("hide");
+}
+
+//making sure that timer always has 2 digits
+//If value is less than 10, we append 0 or we return og value
+const appendZero = (value) => {
+    value = value < 10 ? `0${value}` : value;
+    return value;
+}
+
+// Show custom time input modal
+function showCustomTimeInput() {
+    const modal = document.createElement('div');
+    modal.id = 'custom-time-modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>Set Custom Time</h3>
+            <div class="time-inputs">
+                <div class="input-group">
+                    <label for="custom-mins">Minutes:</label>
+                    <input type="number" id="custom-mins" min="0" max="180" value="25">
+                </div>
+                <div class="input-group">
+                    <label for="custom-secs">Seconds:</label>
+                    <input type="number" id="custom-secs" min="0" max="59" value="0">
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button id="set-custom-time">Set Time</button>
+                <button id="cancel-custom">Cancel</button>
+            </div>
+            <div class="time-range">Range: 1 second to 3 hours</div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Focus on minutes input
+    document.getElementById('custom-mins').focus();
+    
+    // Handle set button
+    document.getElementById('set-custom-time').addEventListener('click', async () => {
+        const mins = parseInt(document.getElementById('custom-mins').value) || 0;
+        const secs = parseInt(document.getElementById('custom-secs').value) || 0;
+        
+        if (validateTime(mins, secs)) {
+            try {
+                await chrome.runtime.sendMessage({ 
+                    action: "setCustomTime", 
+                    minutes: mins, 
+                    seconds: secs, 
+                    type: active 
+                });
+                
+                updateTimerDisplay(mins, secs);
+                document.body.removeChild(modal);
+            } catch (error) {
+                console.error('Error setting custom time:', error);
             }
-            if(mins == 0 && secs == 0)
-                alert("TIME'S UP!!!");
-        }, 1000);
+        } else {
+            alert('Please enter a time between 1 second and 3 hours');
+        }
+    });
+    
+    // Handle cancel button
+    document.getElementById('cancel-custom').addEventListener('click', () => {
+        document.body.removeChild(modal);
+    });
+    
+    // Handle Enter key
+    modal.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            document.getElementById('set-custom-time').click();
+        }
+    });
+}
+
+// Double-tap detection for timer
+let tapCount = 0;
+let tapTimeout;
+
+timer.addEventListener('click', () => {
+    tapCount++;
+    
+    if (tapCount === 1) {
+        tapTimeout = setTimeout(() => {
+            tapCount = 0;
+        }, 300);
+    } else if (tapCount === 2) {
+        clearTimeout(tapTimeout);
+        tapCount = 0;
+        
+        if (!isRunning) {
+            showCustomTimeInput();
+        }
     }
 });
 
-pause.addEventListener("click",
-    (pauseTimer = () => {
-    paused= true;
-    clearInterval(set);
-    start.classList.remove("hide");
-    reset.classList.remove("show");
-    pause.classList.remove("show");
-    })
-);
+// Event listeners for buttons
+start.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ action: "start" });
+});
 
-reset.addEventListener("click", 
-    (resetTime = () => {
-    pauseTimer();
-    switch(active)
-    {
-        case "long": mins=14;
-                     break;
-        case "short": mins = 4;
-                      break;
-        default: mins=24;
-    }
-    secs = 59;
-    timer.textContent = `${mins+1}:00`;
-    })
-);
+pause.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ action: "pause" });
+});
+
+reset.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ action: "reset" });
+});
 
 focus.addEventListener("click", () => {
-    pauseTimer();
-    mins=24;
-    secs=59;
-    timer.textContent = `${mins+1}:00`;
+    chrome.runtime.sendMessage({ action: "setType", type: "focus" });
 });
 
 short_br.addEventListener("click", () => {
-    active = "short";
-    pauseTimer();
-    mins=4;
-    secs=59;
-    timer.textContent = `${appendZero(mins+1)}:00`;
+    chrome.runtime.sendMessage({ action: "setType", type: "short" });
 });
 
 long_br.addEventListener("click", () => {
-    active = "long";
-    pauseTimer();
-    mins=14;
-    secs=59;
-    timer.textContent = `${mins+1}:00`;
+    chrome.runtime.sendMessage({ action: "setType", type: "long" });
 });
