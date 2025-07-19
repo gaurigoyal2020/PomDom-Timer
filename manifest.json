@@ -3,15 +3,23 @@
     "name": "PomDom",
     "version": "1.0.0",
     "author": "Gauri Goyal",
-    "permissions": ["storage", "alarms", "activeTab", "notifications"],
+    "description": "A Pomodoro timer to boost your productivity with focus sessions and breaks",
+    "permissions": ["storage", "alarms"],
     "background": {
         "service_worker": "background.js"
     },
     "action": {
         "default_popup": "index.html",
-        "default_icon": "logo.png"
+        "default_icon": {
+            "16": "logo.png",
+            "48": "logo.png",
+            "128": "logo.png"
+        }
     },
     "icons": {
+        "16": "logo.png",
+        "48": "logo.png",
         "128": "logo.png"
-    }
+    },
+    "minimum_chrome_version": "88"
 }
