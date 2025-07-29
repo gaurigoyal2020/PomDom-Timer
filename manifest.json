@@ -4,7 +4,7 @@
     "version": "1.0.0",
     "author": "Gauri Goyal",
     "description": "A Pomodoro timer to boost your productivity with focus sessions and breaks",
-    "permissions": ["storage", "alarms"],
+    "permissions": ["storage", "alarms", "notifications"],
     "background": {
         "service_worker": "background.js"
     },
